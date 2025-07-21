@@ -96,8 +96,8 @@ class _KeyboardAwareScaffoldState extends State<KeyboardAwareScaffold> {
 
       final resizeStream = const web.EventStreamProvider<web.Event>('resize').forTarget(vv);
       _resizeSub = resizeStream.listen((_) => onViewportResize());
+      onViewportResize();
     });
-    onViewportResize();
   }
 
   @override
