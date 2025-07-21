@@ -36,7 +36,6 @@ class KeyboardAwareScaffold extends StatefulWidget {
 }
 
 class _KeyboardAwareScaffoldState extends State<KeyboardAwareScaffold> {
-  late double _baselineHeight;
   bool _keyboardVisible = false;
   double _keyboardHeight = 0;
   StreamSubscription<web.Event>? _resizeSub;
@@ -68,10 +67,6 @@ class _KeyboardAwareScaffoldState extends State<KeyboardAwareScaffold> {
 
       if (isOpen == _keyboardVisible) return;
 
-      /* if (!isOpen) {
-        _baselineHeight = current;
-      } */
-
       setState(() {
         _keyboardVisible = isOpen;
         _keyboardHeight = diff.clamp(0.0, double.infinity);
@@ -81,19 +76,13 @@ class _KeyboardAwareScaffoldState extends State<KeyboardAwareScaffold> {
     // This is a workaround for the issue with Safari on iOS
     // where the keyboard does not resize the viewport correctly.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final vv = web.window.visualViewport;
       //_baselineHeight = (vv?.height ?? web.window.innerHeight.toDouble());
       if (vv == null) {
         print('VisualViewport is not available');
       }
-
-      /* vv?.addEventListener(
-        'resize',
-        (event) {
-          _onViewportResize();
-        }.toJS,
-      ); */
-
+      // Listen to resize events on the visual viewport
       final resizeStream = const web.EventStreamProvider<web.Event>('resize').forTarget(vv);
       _resizeSub = resizeStream.listen((_) => onViewportResize());
       onViewportResize();
