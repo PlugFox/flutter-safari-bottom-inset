@@ -1,7 +1,6 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
-import 'dart:js_interop';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -40,65 +39,85 @@ class _KeyboardAwareScaffoldState extends State<KeyboardAwareScaffold> {
   late double _baselineHeight;
   bool _keyboardVisible = false;
   double _keyboardHeight = 0;
+  StreamSubscription<web.Event>? _resizeSub;
+
+  static final bool _fixResizeToAvoidBottomInset = kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void initState() {
     super.initState();
-
-    // Инициализируем baseline после первого кадра, когда все DOM-элементы готовы
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final vv = web.window.visualViewport;
-      _baselineHeight = (vv?.height ?? web.window.innerHeight.toDouble());
-      vv?.addEventListener(
-        'resize',
-        (event) {
-          _onViewportResize();
-        }.toJS,
-      );
-      /* vv?.onresize =
-          (event) {
-            _onViewportResize();
-          }.toJS; */
-    });
+    resizeToAvoidBottomInsetFix();
   }
 
-  void _onViewportResize() {
-    final vv = web.window.visualViewport;
-    final current = vv?.height ?? web.window.innerHeight.toDouble();
-    final diff = _baselineHeight - current;
-    final isOpen = diff > 150;
+  void resizeToAvoidBottomInsetFix() {
+    if (!_fixResizeToAvoidBottomInset) return;
 
-    print(
-      'Viewport resized: '
-      'currentHeight=$current, '
-      'diff=$diff, '
-      'isOpen=$isOpen',
-    );
+    // Initialize baseline height to the current viewport height
+    void onViewportResize() {
+      final current = web.window.visualViewport?.height;
+      if (current == null) return;
+      final diff = web.window.innerHeight - current;
+      final isOpen = diff > 150; // Arbitrary threshold to determine if the keyboard is open
 
-    // Если клавиатура закрылась — обновляем baseline, иначе держим старую высоту
-    if (!isOpen) {
-      _baselineHeight = current;
-    }
+      print(
+        'Viewport resized: '
+        'currentHeight=$current, '
+        'diff=$diff, '
+        'isOpen=$isOpen',
+      );
 
-    if (isOpen != _keyboardVisible) {
+      if (isOpen == _keyboardVisible) return;
+
+      /* if (!isOpen) {
+        _baselineHeight = current;
+      } */
+
       setState(() {
         _keyboardVisible = isOpen;
         _keyboardHeight = diff.clamp(0.0, double.infinity);
       });
     }
+
+    // This is a workaround for the issue with Safari on iOS
+    // where the keyboard does not resize the viewport correctly.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final vv = web.window.visualViewport;
+      //_baselineHeight = (vv?.height ?? web.window.innerHeight.toDouble());
+      if (vv == null) {
+        print('VisualViewport is not available');
+      }
+
+      /* vv?.addEventListener(
+        'resize',
+        (event) {
+          _onViewportResize();
+        }.toJS,
+      ); */
+
+      final resizeStream = const web.EventStreamProvider<web.Event>('resize').forTarget(vv);
+      _resizeSub = resizeStream.listen((_) => onViewportResize());
+    });
+    onViewportResize();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _resizeSub?.cancel();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     // Disable resizeToAvoidBottomInset on iOS Safari
     // to prevent the keyboard from pushing the content up
-    resizeToAvoidBottomInset: !(kIsWeb && defaultTargetPlatform == TargetPlatform.iOS),
+    resizeToAvoidBottomInset: !_fixResizeToAvoidBottomInset,
     body: AnimatedPadding(
       duration: const Duration(milliseconds: 100),
       padding: EdgeInsets.only(bottom: _keyboardVisible ? _keyboardHeight : 0),
       child: const SafeArea(
-        child: Center(
-          child: TextField(decoration: InputDecoration(hintText: 'Нажмите, чтобы открыть клавиатуру в Safari')),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: TextField(decoration: InputDecoration(hintText: 'Click here to show keyboard')),
         ),
       ),
     ),
