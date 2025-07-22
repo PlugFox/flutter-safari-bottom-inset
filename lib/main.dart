@@ -1,113 +1,69 @@
-// ignore_for_file: avoid_print
-
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:web/web.dart' as web;
 
 void main() => runZonedGuarded<void>(
   () async {
-    final binding = WidgetsFlutterBinding.ensureInitialized()..deferFirstFrame();
-    runApp(const MyApp());
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      binding.allowFirstFrame();
-    });
+    runApp(const App());
   },
-  (error, stack) {
-    print('Error in main: $error');
-  },
+  (error, stackTrace) => print('Top level exception: $error\n$stackTrace'), // ignore: avoid_print
 );
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class App extends StatelessWidget {
+  const App({super.key});
+
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(home: KeyboardAwareScaffold());
-  }
+  Widget build(BuildContext context) => const MaterialApp(title: 'Material App', home: Screen());
 }
 
-class KeyboardAwareScaffold extends StatefulWidget {
-  const KeyboardAwareScaffold({super.key});
+class Screen extends StatefulWidget {
+  const Screen({super.key});
 
   @override
-  State<KeyboardAwareScaffold> createState() => _KeyboardAwareScaffoldState();
+  State<Screen> createState() => _ScreenState();
 }
 
-class _KeyboardAwareScaffoldState extends State<KeyboardAwareScaffold> {
-  bool _keyboardVisible = false;
-  double _keyboardHeight = 0;
-  StreamSubscription<web.Event>? _resizeSub;
-
-  static final bool _fixResizeToAvoidBottomInset = kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-
-  @override
-  void initState() {
-    super.initState();
-    resizeToAvoidBottomInsetFix();
-  }
-
-  void resizeToAvoidBottomInsetFix() {
-    if (!_fixResizeToAvoidBottomInset) return;
-
-    // Initialize baseline height to the current viewport height
-    void onViewportResize() {
-      final current = web.window.visualViewport?.height;
-      if (current == null) return;
-      final diff = web.window.innerHeight - current;
-      final isOpen = diff > 150; // Arbitrary threshold to determine if the keyboard is open
-
-      print(
-        'Viewport resized: '
-        'currentHeight=$current, '
-        'diff=$diff, '
-        'isOpen=$isOpen',
-      );
-
-      if (isOpen == _keyboardVisible) return;
-
-      setState(() {
-        _keyboardVisible = isOpen;
-        _keyboardHeight = diff.clamp(0.0, double.infinity);
-      });
-    }
-
-    // This is a workaround for the issue with Safari on iOS
-    // where the keyboard does not resize the viewport correctly.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final vv = web.window.visualViewport;
-      //_baselineHeight = (vv?.height ?? web.window.innerHeight.toDouble());
-      if (vv == null) {
-        print('VisualViewport is not available');
-      }
-      // Listen to resize events on the visual viewport
-      final resizeStream = const web.EventStreamProvider<web.Event>('resize').forTarget(vv);
-      _resizeSub = resizeStream.listen((_) => onViewportResize());
-      onViewportResize();
-    });
-  }
+class _ScreenState extends State<Screen> {
+  final textController = TextEditingController();
 
   @override
   void dispose() {
+    textController.dispose();
     super.dispose();
-    _resizeSub?.cancel();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    // Disable resizeToAvoidBottomInset on iOS Safari
-    // to prevent the keyboard from pushing the content up
-    resizeToAvoidBottomInset: !_fixResizeToAvoidBottomInset,
-    body: AnimatedPadding(
-      duration: const Duration(milliseconds: 100),
-      padding: EdgeInsets.only(bottom: _keyboardVisible ? _keyboardHeight : 0),
-      child: const SafeArea(
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: TextField(decoration: InputDecoration(hintText: 'Click here to show keyboard')),
-        ),
+    appBar: AppBar(title: const Text('0.0.1'), centerTitle: true),
+    resizeToAvoidBottomInset: true, // Adjusts the body when the keyboard is shown
+    body: SafeArea(
+      maintainBottomViewPadding: true, // Keeps the bottom padding when the keyboard is shown
+      child: Stack(
+        children: <Widget>[
+          Align(
+            alignment: const Alignment(0.0, 0.5),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Padding: ${MediaQuery.paddingOf(context)}', overflow: TextOverflow.ellipsis),
+                Text('View padding: ${MediaQuery.viewPaddingOf(context)}', overflow: TextOverflow.ellipsis),
+                Text('View insets: ${MediaQuery.viewInsetsOf(context)}', overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: textController,
+                decoration: const InputDecoration(labelText: 'Type something', border: OutlineInputBorder()),
+              ),
+            ),
+          ),
+        ],
       ),
     ),
   );

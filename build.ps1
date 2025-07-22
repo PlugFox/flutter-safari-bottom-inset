@@ -1,0 +1,1 @@
+puro flutter build web --release --base-href /
